@@ -1,2 +1,3 @@
 pip install paddlepaddle-gpu
 pip install paddleocr
+pip install streamlit
