@@ -1,15 +1,16 @@
 import json
 import google.generativeai as genai
 import re
+from dotenv import load_dotenv
+import os
 
-# Set up your API key
-API_KEY = "YOUR_API_KEY"  # Replace with your actual API key
+load_dotenv()
 
-# Configure Gemini API
-genai.configure(api_key=API_KEY)
-
-# Choose a free model
+API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_NAME = "gemini-1.5-flash-latest"
+
+# configure the API
+genai.configure(api_key=API_KEY)
 
 # Example extracted receipt text
 receipt_text = """
