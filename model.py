@@ -1,19 +1,24 @@
 import json
-import google.generativeai as genai
-import streamlit as st
+import os
 import re
 from dotenv import load_dotenv
-import os
+import google.generativeai as genai
+import streamlit as st
+from paddleocr import PaddleOCR
+import fitz
+from PIL import Image
+import numpy as np
+
 
 load_dotenv()
-
+# global
 API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_NAME = "gemini-1.5-flash-latest"
 
 # configure the API
 genai.configure(api_key=API_KEY)
 
-# # extracted receipt text for TESTING
+# # sample extracted receipt text for TESTING
 # receipt_text = """
 # tan woon yann
 # INDAH GIFT& HOME IECO
@@ -64,8 +69,64 @@ genai.configure(api_key=API_KEY)
 # Dealing In Wholesale And Retail.
 # """
 
+def pdf_to_images(pdf_path):
+    """Converts each page of a PDF to images. Returns a list of image paths or numpy arrays."""
+    doc = fitz.open(pdf_path)
+    images = []
 
-def get_model_response(ocr_generated_data):
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        pix = page.get_pixmap()
+        
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img_np = np.array(img)  # convert to numpy array for PaddleOCR
+        
+        images.append(img_np)
+
+    return images
+
+
+def ocr_text_extract(file):
+    """
+    Extracts text using PaddleOCR from given list of images.
+    """
+    if not file:
+        print("No file selected.")
+        return None
+
+    ocr = PaddleOCR(use_angle_cls=True, lang="en")
+    extracted_text = []
+
+    print(f"Processing file: {file}")
+
+    if file.lower().endswith(".pdf"):
+        print("Processing PDF...")
+        # convert PDF to images
+        images = pdf_to_images(file)
+        
+        # extract text from each image
+        for img in images:
+            result = ocr.ocr(img, cls=True)
+            if result and result[0]:  # check if result is not empty
+                extracted_text.extend([line[1][0] for line in result[0]])
+
+    else:
+        # image files
+        print("Processing image...")
+        img = Image.open(file)
+        img_np = np.array(img)  # convert image to numpy array for PaddleOCR
+        result = ocr.ocr(img_np, cls=True)
+        if result and result[0]:  # check if result is not empty
+            extracted_text.extend([line[1][0] for line in result[0]])
+
+    return extracted_text  # list of extracted works
+
+
+def get_model_response(ocr_extracted_data):
+    """Extracted data from OCR passed to modal for error correction and formatting. Returns the json data."""
+
+    ocr_extracted_data = "\n".join(ocr_extracted_data)  # formatting as string
+
     prompt = f"""
     Extract important details from the receipt, correct any spelling errors, and return a properly formatted JSON object.
 
@@ -95,7 +156,7 @@ def get_model_response(ocr_generated_data):
     - **Return only valid JSON** with no extra text, explanations, or formatting.
 
     ### **Extracted Receipt Text:**
-    {ocr_generated_data}
+    {ocr_extracted_data}
 
     **Output:** Return only a valid JSON object.
     """
