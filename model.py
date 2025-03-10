@@ -69,26 +69,33 @@ genai.configure(api_key=API_KEY)
 # Dealing In Wholesale And Retail.
 # """
 
-def pdf_to_images(pdf_path):
-    """Converts each page of a PDF to images. Returns a list of image paths or numpy arrays."""
-    doc = fitz.open(pdf_path)
+def pdf_to_images(file):
+    """Converts each page of a PDF file object to images. Returns a list of numpy arrays."""
     images = []
-
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        pix = page.get_pixmap()
-        
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        img_np = np.array(img)  # convert to numpy array for PaddleOCR
-        
-        images.append(img_np)
-
+    try:
+        # read the file content as bytes
+        file_bytes = file.read()
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            pix = page.get_pixmap()
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            img_np = np.array(img)  # convert to numpy array for PaddleOCR
+            images.append(img_np)
+    except Exception as e:
+        print(f"Error processing PDF: {e}")
     return images
 
 
 def ocr_text_extract(file):
     """
-    Extracts text using PaddleOCR from given list of images.
+    Extracts text using PaddleOCR from a single uploaded file (image or PDF).
+    
+    Args:
+        file (UploadedFile): A single uploaded file (image or PDF).
+    
+    Returns:
+        list: A list of extracted text from the file.
     """
     if not file:
         print("No file selected.")
@@ -97,9 +104,10 @@ def ocr_text_extract(file):
     ocr = PaddleOCR(use_angle_cls=True, lang="en")
     extracted_text = []
 
-    print(f"Processing file: {file}")
+    file_name = file.name  # get the file name as a string
+    print(f"Processing file: {file_name}")
 
-    if file.lower().endswith(".pdf"):
+    if file_name.lower().endswith(".pdf"):  # check if the file is a PDF
         print("Processing PDF...")
         # convert PDF to images
         images = pdf_to_images(file)
@@ -107,19 +115,19 @@ def ocr_text_extract(file):
         # extract text from each image
         for img in images:
             result = ocr.ocr(img, cls=True)
-            if result and result[0]:  # check if result is not empty
+            if result and result[0]:  # check if OCR result is not empty
                 extracted_text.extend([line[1][0] for line in result[0]])
 
     else:
-        # image files
+        # handle image files
         print("Processing image...")
         img = Image.open(file)
         img_np = np.array(img)  # convert image to numpy array for PaddleOCR
         result = ocr.ocr(img_np, cls=True)
-        if result and result[0]:  # check if result is not empty
+        if result and result[0]:  # check if OCR result is not empty
             extracted_text.extend([line[1][0] for line in result[0]])
 
-    return extracted_text  # list of extracted works
+    return extracted_text  # list of extracted text
 
 
 def get_model_response(ocr_extracted_data):
@@ -175,6 +183,6 @@ def get_model_response(ocr_extracted_data):
     except json.JSONDecodeError:
         print("ERROR: Invalid JSON response from Gemini.")
         print("RAW OUTPUT:\n", raw_output)
-        # TODO: remove the line and add 'raise' catch the exception in the app.py
+        # TODO: remove the below line and add 'raise' catch the exception in the app.py
         # st.error(f"ERROR: Invalid JSON response from Gemini.\n\nRAW OUTPUT:\n\n{raw_output}")
     return None
