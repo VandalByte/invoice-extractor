@@ -104,9 +104,10 @@ def ocr_text_extract(file):
     ocr = PaddleOCR(use_angle_cls=True, lang="en")
     extracted_text = []
 
-    print(f"Processing file: {file}")
+    file_name = file.name  # get the file name as a string
+    print(f"Processing file: {file_name}")
 
-    if file.lower().endswith(".pdf"):  # check if the file is a PDF
+    if file_name.lower().endswith(".pdf"):  # check if the file is a PDF
         print("Processing PDF...")
         # convert PDF to images
         images = pdf_to_images(file)
